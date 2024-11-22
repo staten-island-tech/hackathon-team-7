@@ -1,7 +1,7 @@
 import pygame
 import random
-from pygame.locals import *
 import time
+from pygame.locals import *
 
 # Initialize pygame
 pygame.init()
@@ -9,90 +9,93 @@ pygame.init()
 # Set up screen
 screen_width, screen_height = 800, 600
 screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.set_caption("Rhythm Game - Osu! Mania-like")
+pygame.display.set_caption("Rhythm Game")
 
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
-GRAY = (169, 169, 169)  # Light gray for borders
+GRAY = (169, 169, 169)
 
-# Define constants for game
-NOTE_RADIUS = 30  # Bigger radius for the circular notes
-NOTE_SPEED = 15  # Constant speed for the notes
-BORDER_WIDTH = 5
+# Define constants for the game
+NOTE_RADIUS = 30
+NOTE_SPEED = 10
 KEY_WIDTH = 100  # Width for each key column
+KEY_HEIGHT = 100  # Height for the key border (from bottom of the screen)
+NOTE_SPACING = 120  # Horizontal spacing between notes (this ensures the keys don't overlap)
 
 # Set up fonts
 font = pygame.font.SysFont("Arial", 24)
 
-# Function to draw circle-shaped notes
-def draw_circle(surface, x, y, radius, color):
-    pygame.draw.circle(surface, color, (x, y), radius)
+# Define positions for the notes corresponding to the keys
+NOTE_X_POSITIONS = [200, 320, 440, 560]  # Adjusted for non-overlapping key positions
+KEYS = {K_z: 0, K_x: 1, K_n: 2, K_m: 3}  # Map keys to note positions
 
-# Function to draw the visual borders for each key (centered on the screen)
-def draw_key_borders():
-    note_x_positions = [200, 300, 400, 500]  # More centered positions for the 4 keys (Z, X, N, M)
-    for x in note_x_positions:
-        draw_circle(screen, x, screen_height - NOTE_RADIUS - 5, NOTE_RADIUS, WHITE)  # Draw border as a circle
-        pygame.draw.line(screen, GRAY, (x - KEY_WIDTH // 2, 0), (x - KEY_WIDTH // 2, screen_height), 2)  # Left border
-        pygame.draw.line(screen, GRAY, (x + KEY_WIDTH // 2, 0), (x + KEY_WIDTH // 2, screen_height), 2)  # Right border
-
-# Note class to represent falling circular notes
+# Note class to represent falling notes
 class Note:
     def __init__(self, x, y):
         self.x = x
         self.y = y
         self.radius = NOTE_RADIUS
         self.color = RED
-        self.speed = NOTE_SPEED  # Fixed speed
+        self.speed = NOTE_SPEED
     
     def move(self):
         self.y += self.speed
     
     def draw(self, surface):
-        draw_circle(surface, self.x, self.y, self.radius, self.color)
+        pygame.draw.circle(surface, self.color, (self.x, self.y), self.radius)
 
-# Function to generate notes at random horizontal positions
+# Function to create new notes at random positions
 def create_new_note():
-    note_x_positions = [200, 300, 400, 500]  # More centered positions for the 4 keys (Z, X, N, M)
-    x = random.choice(note_x_positions)
+    x = random.choice(NOTE_X_POSITIONS)
     y = -50  # Start offscreen
     return Note(x, y)
 
-# Function to check if a key press matches with the note
+# Function to check if a key press hits a note
 def check_input(notes, keys_pressed):
     score = 0
     for note in notes[:]:
-        if note.y > screen_height - NOTE_RADIUS:
-            for key, note_x in keys_pressed.items():
-                if pygame.key.get_pressed()[key] and note.x == note_x:  # Matching the center of the circle note
+        if note.y > screen_height - NOTE_RADIUS:  # Note reaches the hit zone (bottom of the screen)
+            for key, note_pos in keys_pressed.items():
+                if pygame.key.get_pressed()[key] and note.x == NOTE_X_POSITIONS[note_pos]:
                     score += 1
-                    notes.remove(note)
-                    break
+                    notes.remove(note)  # Remove the note after it is hit
+                    break  # Stop checking once one note is hit
     return score
+
+# Draw key borders (visual representation of key zones)
+def draw_key_borders():
+    for idx, x in enumerate(NOTE_X_POSITIONS):
+        # Draw the key border area (a rectangle for each key zone)
+        pygame.draw.rect(screen, GRAY, (x - KEY_WIDTH // 2, screen_height - KEY_HEIGHT, KEY_WIDTH, KEY_HEIGHT), 2)
+
+        # Draw dividers between each key (vertical lines)
+        if idx < len(NOTE_X_POSITIONS) - 1:  # No divider after the last key
+            next_x = NOTE_X_POSITIONS[idx + 1] - KEY_WIDTH // 2
+            pygame.draw.line(screen, GRAY, (x + KEY_WIDTH // 2, screen_height - KEY_HEIGHT), 
+                             (next_x - KEY_WIDTH // 2, screen_height - KEY_HEIGHT), 3)
 
 # Main game loop
 def main():
     clock = pygame.time.Clock()
     notes = []
     score = 0
-    keys_pressed = {K_z: 200, K_x: 300, K_n: 400, K_m: 500}  # Z, X, N, M keys mapped to positions
-    game_over = False
+    keys_pressed = {K_z: 0, K_x: 1, K_n: 2, K_m: 3}  # Map keys to note positions
     last_note_time = time.time()
-    
-    # Adjust the note generation frequency for more frequent note appearances
-    note_interval = 0.15  # Notes will spawn every 0.15 seconds (faster spawn rate)
-    
+    note_interval = 0.5  # Notes spawn every 0.5 seconds
+
+    game_over = False
     while not game_over:
         screen.fill(BLACK)
 
-        # Check time to spawn a new note and add it at regular intervals
+        # Check time to spawn a new note
         current_time = time.time()
         if current_time - last_note_time > note_interval:
-            notes.append(create_new_note())  # Add a new note at random positions
+            notes.append(create_new_note())  # Add new note at random position
             last_note_time = current_time
 
+        # Handle events
         for event in pygame.event.get():
             if event.type == QUIT:
                 game_over = True
@@ -102,21 +105,21 @@ def main():
             note.move()
             note.draw(screen)
 
-        # Check input
-        score += check_input(notes, keys_pressed)
+        # Check input and update score
+        score = check_input(notes, keys_pressed)
 
-        # Draw the visual circle borders for each key and their dividing lines
+        # Draw the visual borders for each key and dividers between them
         draw_key_borders()
 
         # Display score
         score_text = font.render(f"Score: {score}", True, WHITE)
         screen.blit(score_text, (10, 10))
 
-        # Remove notes that fall out of the screen
+        # Remove notes that are off-screen
         notes = [note for note in notes if note.y < screen_height]
 
         pygame.display.flip()
-        clock.tick(60)  # 60 frames per second
+        clock.tick(60)  # Limit to 60 frames per second
 
     pygame.quit()
 
